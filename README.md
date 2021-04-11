@@ -14,16 +14,16 @@ It is a package using GNUPG for encrypting passwords.
 
 ### Usage
 
-    ```
-    Usage:
-        pass [account] - Loads password to clipboard
+```
+Usage:
+    pass [account] - Loads password to clipboard
 
-        -a , --add
-            passx -a/--add [account] - Saves account
-        -d, --delete
-            passx -d/--delete [account] - Deletes account
-        --list
-            passx --list - List all accounts saved
-    ```
+    -a , --add
+        passx -a/--add [account] - Saves account
+    -d, --delete
+        passx -d/--delete [account] - Deletes account
+    --list
+        passx --list - List all accounts saved
+```
     
 
