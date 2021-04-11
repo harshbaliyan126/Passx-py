@@ -1,0 +1,6 @@
+appdirs==1.4.4
+fs==2.4.13
+pyperclip==1.8.2
+python-gnupg==0.4.7
+pytz==2021.1
+six==1.15.0
