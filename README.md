@@ -1,5 +1,5 @@
 # Passx
-It is a package using GNUPG for encrypting passwords. 
+It's a script, using GNUPG for encrypting passwords. 
 
 ### Installation 
 
