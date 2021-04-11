@@ -16,7 +16,7 @@ It's a script, using GNUPG for encrypting passwords.
 
 ```
 Usage:
-    pass [account] - Loads password to clipboard
+    passx.py [account] - Loads password to clipboard
 
     -a , --add
         passx -a/--add [account] - Saves account
