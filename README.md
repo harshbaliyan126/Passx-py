@@ -9,6 +9,7 @@ It's a script, using GNUPG for encrypting passwords.
    ```console
    $ git clone https://github.com/harshbaliyan126/Passx-py.git
    $ cd Passx-py
+   $ pip install -r requirement.txt
    $ chmod +x ./main/passx.py
    ```
 
