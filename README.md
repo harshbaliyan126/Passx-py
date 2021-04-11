@@ -14,7 +14,7 @@ It is a package using GNUPG for encrypting passwords.
 
 ### Usage
 
-    ```text
+    ```
     Usage:
         pass [account] - Loads password to clipboard
 
