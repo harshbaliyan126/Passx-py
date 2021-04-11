@@ -11,7 +11,8 @@ It is a package using GNUPG for encrypting passwords.
    ```
 ### Usage
 
-    ```
+    ```console
+    $ ./passx --help
     Usage:
         pass [account] - Loads password to clipboard
 
