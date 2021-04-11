@@ -7,12 +7,14 @@ It is a package using GNUPG for encrypting passwords.
  -  After that, when key pair is created. Do following:
 
    ```console
-   $ pip install passx
+   $ git clone https://github.com/harshbaliyan126/Passx-py.git
+   $ cd Passx-py
+   $ chmod +x ./main/passx.py
    ```
+
 ### Usage
 
-    ```console
-    $ ./passx --help
+    ```text
     Usage:
         pass [account] - Loads password to clipboard
 
