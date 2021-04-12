@@ -1,5 +1,5 @@
 # Passx
-It is a package using GNUPG for encrypting passwords. 
+It's a script, using GNUPG for encrypting passwords. 
 
 ### Installation 
 
@@ -9,21 +9,22 @@ It is a package using GNUPG for encrypting passwords.
    ```console
    $ git clone https://github.com/harshbaliyan126/Passx-py.git
    $ cd Passx-py
+   $ pip install -r requirement.txt
    $ chmod +x ./main/passx.py
    ```
 
 ### Usage
 
-    ```
-    Usage:
-        pass [account] - Loads password to clipboard
+```
+Usage:
+    passx.py [account] - Loads password to clipboard
 
-        -a , --add
-            passx -a/--add [account] - Saves account
-        -d, --delete
-            passx -d/--delete [account] - Deletes account
-        --list
-            passx --list - List all accounts saved
-    ```
+    -a , --add
+        passx -a/--add [account] - Saves account
+    -d, --delete
+        passx -d/--delete [account] - Deletes account
+    --list
+        passx --list - List all accounts saved
+```
     
 
