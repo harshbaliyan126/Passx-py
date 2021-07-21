@@ -1,9 +1,9 @@
 #!/usr/bin/python3
-import os 
+import os
 import pyperclip
-import sys 
-import shelve 
-import getpass 
+import sys
+import shelve
+import getpass
 
 # custom module
 import decrypt_pass, encrypt_pass
@@ -12,6 +12,7 @@ import decrypt_pass, encrypt_pass
 def list_all_account(pass1):
     for list_pass in pass1.keys():
                 print(list_pass)
+
 # it ask user whether he want to show password or not
 def show_choice_pass(show_ch, account, pass1):
     if show_ch.lower() == 'y':
@@ -27,7 +28,7 @@ def copy_pass_clip(pass1, account):
     else:
         print("Account doesn't exist")
 
-# check whether user has given recipient for encryption 
+# check whether user has given recipient for encryption
 def check_recipient():
     if os.path.exists('encrypted/recipient.txt'):
         with open("encrypted/recipient.txt", "r") as f:
@@ -45,8 +46,7 @@ def arg_true():
     if not os.path.exists('encrypted'):
         os.mkdir('encrypted')
     if os.path.exists('encrypted/pass.gpg'):
-        passphrase_gpg = getpass.getpass("Passphrase: \uf084")
-        decrypt_pass.decrypt(passphrase_gpg)
+        decrypt_pass.decrypt()
         os.remove('encrypted/pass.gpg')
     passwords = shelve.open('encrypted/pass')
     if len(sys.argv) == 3:
@@ -66,7 +66,7 @@ def arg_true():
         os.remove('encrypted/pass')
 
 # display how to use passx
-def help():    
+def help():
     usage_str  = '''\tpass [account] - Loads password to clipboard\n'''
     usage_str1 = '''\t-a , --add
             passx -a/--add [account] - Saves account'''
@@ -76,7 +76,7 @@ def help():
             passx --list - List all accounts saved'''
     print('Usage:\n' + usage_str + '\n' + usage_str1 + '\n' + usage_str2 + '\n' + usage_str3)
 
-# main function 
+# main function
 def main():
     if len(sys.argv) > 1:
         if sys.argv[1].lower() == '--help':
@@ -85,13 +85,6 @@ def main():
         arg_true()
     else:
         help()
-           
+
 if __name__=="__main__":
     main()
-
-
-    
-        
-        
-            
-
