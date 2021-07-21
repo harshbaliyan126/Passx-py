@@ -11,6 +11,7 @@ It's a script, using GNUPG for encrypting passwords.
    $ cd Passx-py
    $ pip install -r requirement.txt
    $ chmod +x ./main/passx
+   $ cp ./main/passx to/the/path/directory
    ```
 
 ### Usage
