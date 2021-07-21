@@ -4,9 +4,25 @@ import pyperclip
 import sys
 import shelve
 import getpass
+import fs
+from fs import open_fs
+import gnupg
+from pathlib import Path
 
 # custom module
-import decrypt_pass, encrypt_pass
+config_passx = os.path.expanduser('~') + '/.config/passx'
+
+def encrypt(enter_reci):
+    home = str(Path.home())
+    gpg = gnupg.GPG(gnupghome=home + "/.gnupg")
+    with open(home + "/.config/passx/encrypted/pass","rb") as f:
+        status = gpg.encrypt_file(f, recipients=[enter_reci], output= home + "/.config/passx/encrypted/pass.gpg")
+
+def decrypt():
+    home = str(Path.home())
+    gpg = gnupg.GPG(gnupghome=home + "/.gnupg")
+    with open( home + "/.config/passx/encrypted/pass.gpg","rb") as f:
+        status = gpg.decrypt_file(f,output=home + "/.config/passx/encrypted/pass")
 
 # list all accounts present in db
 def list_all_account(pass1):
@@ -30,25 +46,30 @@ def copy_pass_clip(pass1, account):
 
 # check whether user has given recipient for encryption
 def check_recipient():
-    if os.path.exists('encrypted/recipient.txt'):
-        with open("encrypted/recipient.txt", "r") as f:
+    global config_passx
+    if os.path.exists(config_passx + '/encrypted/recipient.txt'):
+        with open(config_passx + "/encrypted/recipient.txt", "r") as f:
             reci = f.read()
             if reci[len(reci)-1] == '\n':
                 reci = reci[:len(reci)-2]
     else:
         reci = input("Enter Recipient: ")
-        with open("encrypted/recipient.txt", "w") as f:
+        with open(config_passx + "/encrypted/recipient.txt", "w") as f:
             f.write(reci)
     return reci
 
 # If user have given command
 def arg_true():
-    if not os.path.exists('encrypted'):
-        os.mkdir('encrypted')
-    if os.path.exists('encrypted/pass.gpg'):
-        decrypt_pass.decrypt()
-        os.remove('encrypted/pass.gpg')
-    passwords = shelve.open('encrypted/pass')
+    global config_passx
+
+    if not os.path.exists(config_passx):
+        os.mkdir(config_passx)
+    if not os.path.exists(config_passx + '/encrypted'):
+        os.mkdir(config_passx + '/encrypted')
+    if os.path.exists(config_passx + '/encrypted/pass.gpg'):
+        decrypt()
+        os.remove(config_passx + '/encrypted/pass.gpg')
+    passwords = shelve.open(config_passx + '/encrypted/pass')
     if len(sys.argv) == 3:
         if sys.argv[1].lower() == '--add' or sys.argv[1].lower() == '-a':
             show_choice = input('Show Password[y/N]: ')
@@ -61,9 +82,9 @@ def arg_true():
         elif sys.argv[1] in passwords:
             copy_pass_clip(passwords, sys.argv[1])
     passwords.close()
-    if os.path.exists("encrypted/pass"):
-        encrypt_pass.encrypt(check_recipient())
-        os.remove('encrypted/pass')
+    if os.path.exists(config_passx + "/encrypted/pass"):
+        encrypt(check_recipient())
+        os.remove(config_passx + '/encrypted/pass')
 
 # display how to use passx
 def help():
