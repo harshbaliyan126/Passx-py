@@ -7,11 +7,7 @@ It's a script, using GNUPG for encrypting passwords.
  -  After that, when key pair is created. Do following:
 
    ```console
-   $ git clone https://github.com/harshbaliyan126/Passx-py.git
-   $ cd Passx-py
-   $ pip install -r requirement.txt
-   $ chmod +x ./main/passx
-   $ cp ./main/passx to/the/path/directory
+   $ pip install passx
    ```
 
 ### Usage
