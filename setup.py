@@ -5,7 +5,7 @@ with open("requirement.txt") as f:
 with open("README.md", "r") as readme:
     LONG_DESCRIPTION = readme.read()
 
-VERSION = '0.0.3'
+VERSION = '0.0.7'
 DESCRIPTION = 'A Password manager using GNUPG'
 URL = "https://github.com/harshbaliyan126/Passx-py"
 
