@@ -2,6 +2,8 @@
 A password manager with a desktop GUI protected by a master password, plus a
 command line tool that uses GNUPG.
 
+![Passx main window with folders, accounts and account details](docs/screenshots/main.png)
+
 ### GUI
 
 ```console
@@ -17,6 +19,10 @@ On Debian/Ubuntu you may first need `sudo apt install python3-tk`.
   The website is filled in automatically for well-known sites, and you can type any other link.
 - Double-click an account (or press Ctrl+C) to copy its password, then paste it with Ctrl+V.
   The clipboard is cleared after 30 seconds. Ctrl+B copies the username.
+
+| Create your vault | Add an account |
+|---|---|
+| ![Creating a master password with a strength meter](docs/screenshots/create-vault.png) | ![Add account dialog with folder, password generator and website](docs/screenshots/add-account.png) |
 
 The GUI vault is stored in `~/.config/passx/passwords.vault`, encrypted with
 AES-256-GCM using a key derived from the master password with Argon2id
