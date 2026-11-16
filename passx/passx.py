@@ -1,111 +1,248 @@
 #!/usr/bin/env python3
-import os
-import pyperclip
-import sys
-import shelve
+import argparse
 import getpass
-import fs
-from fs import open_fs
-import gnupg
+import hashlib
+import json
+import os
+import shelve
+import subprocess
+import sys
+import tempfile
+import time
 from pathlib import Path
 
-# custom module
-config_passx = os.path.expanduser('~') + '/.config/passx'
+import gnupg
+import pyperclip
 
-def encrypt(enter_reci):
-    home = str(Path.home())
-    gpg = gnupg.GPG(gnupghome=home + "/.gnupg")
-    with open(home + "/.config/passx/encrypted/pass","rb") as f:
-        status = gpg.encrypt_file(f, recipients=[enter_reci], output= home + "/.config/passx/encrypted/pass.gpg")
+from passx.fileio import atomic_write
 
-def decrypt():
-    home = str(Path.home())
-    gpg = gnupg.GPG(gnupghome=home + "/.gnupg")
-    with open( home + "/.config/passx/encrypted/pass.gpg","rb") as f:
-        status = gpg.decrypt_file(f,output=home + "/.config/passx/encrypted/pass")
+CONFIG_DIR = Path.home() / '.config' / 'passx'
+VAULT_FILE = 'vault.gpg'
+RECIPIENT_FILE = 'recipient.txt'
+# files written by passx <= 0.0.7, kept only for migration
+LEGACY_DIR = 'encrypted'
 
-# list all accounts present in db
-def list_all_account(pass1):
-    for list_pass in pass1.keys():
-                print(list_pass)
+DEFAULT_CLIP_TIME = 45
 
-# it ask user whether he want to show password or not
-def show_choice_pass(show_ch, account, pass1):
-    if show_ch.lower() == 'y':
-        pass1[account] = input('Password: ')
-    elif show_ch.lower() == 'n' or show_ch == '':
-        pass1[account] = getpass.getpass("Password: ")
 
-# copy pasword to clipboard
-def copy_pass_clip(pass1, account):
-    if account in pass1:
-        pyperclip.copy(pass1[account])
-        print('Password for ' + account + ' copied to the clipboard.')
+class PassxError(Exception):
+    pass
+
+
+class Vault:
+    """Accounts stored as a single GPG-encrypted JSON document.
+
+    Plaintext never touches the disk: the vault is decrypted into memory,
+    and saved by encrypting in memory and atomically replacing the old file.
+    """
+
+    def __init__(self, config_dir=None, gpg=None):
+        self.config_dir = Path(config_dir or CONFIG_DIR)
+        self.path = self.config_dir / VAULT_FILE
+        # gnupghome=None lets gpg honour $GNUPGHOME or fall back to ~/.gnupg
+        self.gpg = gpg or gnupg.GPG(gnupghome=os.environ.get('GNUPGHOME'))
+        self.accounts = {}
+
+    def ensure_config_dir(self):
+        self.config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(self.config_dir, 0o700)
+
+    def load(self):
+        self.ensure_config_dir()
+        if not self.path.exists():
+            self.accounts = migrate_legacy(self) or {}
+            return self
+        with open(self.path, 'rb') as f:
+            result = self.gpg.decrypt_file(f)
+        if not result.ok:
+            raise PassxError('Could not decrypt %s: %s' % (self.path, result.status))
+        data = json.loads(result.data.decode('utf-8'))
+        self.accounts = data['accounts']
+        return self
+
+    def save(self):
+        self.ensure_config_dir()
+        payload = json.dumps({'version': 1, 'accounts': self.accounts})
+        result = self.gpg.encrypt(payload, [self.recipient()], armor=False)
+        if not result.ok:
+            raise PassxError('Encryption failed, vault left unchanged: %s' % result.status)
+        atomic_write(self.path, result.data)
+
+    def recipient(self):
+        for path in (self.config_dir / RECIPIENT_FILE,
+                     self.config_dir / LEGACY_DIR / RECIPIENT_FILE):
+            if path.exists():
+                reci = path.read_text().strip()
+                if reci:
+                    return reci
+        reci = input('Enter GPG recipient (key ID or email): ').strip()
+        if not reci:
+            raise PassxError('A recipient is required to encrypt the vault')
+        (self.config_dir / RECIPIENT_FILE).write_text(reci + '\n')
+        return reci
+
+
+def read_shelve(path):
+    with shelve.open(str(path), flag='r') as db:
+        return dict(db)
+
+
+def migrate_legacy(vault):
+    """Import accounts from the shelve database used by passx <= 0.0.7.
+
+    Returns the accounts, or None if there is nothing to migrate. Legacy files
+    are only renamed after the new vault has been written successfully.
+    """
+    legacy = vault.config_dir / LEGACY_DIR
+    plain = legacy / 'pass'
+    encrypted = legacy / 'pass.gpg'
+
+    if plain.exists():
+        # left behind unencrypted by an interrupted run of the old version
+        accounts = read_shelve(plain)
+    elif encrypted.exists():
+        with open(encrypted, 'rb') as f:
+            result = vault.gpg.decrypt_file(f)
+        if not result.ok:
+            raise PassxError('Could not decrypt legacy vault %s: %s' % (encrypted, result.status))
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / 'pass'
+            db.write_bytes(result.data)
+            accounts = read_shelve(db)
     else:
-        print("Account doesn't exist")
+        return None
 
-# check whether user has given recipient for encryption
-def check_recipient():
-    global config_passx
-    if os.path.exists(config_passx + '/encrypted/recipient.txt'):
-        with open(config_passx + "/encrypted/recipient.txt", "r") as f:
-            reci = f.read()
-            if reci[len(reci)-1] == '\n':
-                reci = reci[:len(reci)-2]
+    vault.accounts = accounts
+    vault.save()
+    if plain.exists():
+        os.remove(plain)
+    if encrypted.exists():
+        os.replace(encrypted, legacy / 'pass.gpg.migrated')
+    print('Migrated %d account(s) to %s' % (len(accounts), vault.path), file=sys.stderr)
+    return accounts
+
+
+def prompt_password():
+    show = input('Show password [y/N]: ').strip().lower()
+    if show in ('y', 'yes'):
+        password = input('Password: ')
     else:
-        reci = input("Enter Recipient: ")
-        with open(config_passx + "/encrypted/recipient.txt", "w") as f:
-            f.write(reci)
-    return reci
+        password = getpass.getpass('Password: ')
+        if getpass.getpass('Confirm password: ') != password:
+            raise PassxError('Passwords do not match')
+    if not password:
+        raise PassxError('Password cannot be empty')
+    return password
 
-# If user have given command
-def arg_true():
-    global config_passx
 
-    if not os.path.exists(config_passx):
-        os.mkdir(config_passx)
-    if not os.path.exists(config_passx + '/encrypted'):
-        os.mkdir(config_passx + '/encrypted')
-    if os.path.exists(config_passx + '/encrypted/pass.gpg'):
-        decrypt()
-        os.remove(config_passx + '/encrypted/pass.gpg')
-    passwords = shelve.open(config_passx + '/encrypted/pass')
-    if len(sys.argv) == 3:
-        if sys.argv[1].lower() == '--add' or sys.argv[1].lower() == '-a':
-            show_choice = input('Show Password[y/N]: ')
-            show_choice_pass(show_choice, sys.argv[2], passwords)
-        elif sys.argv[1].lower() == '--delete' or sys.argv[1].lower() == '-d':
-            del passwords[sys.argv[2]]
-    elif len(sys.argv) == 2:
-        if  sys.argv[1].lower() == '--list':
-            list_all_account(passwords)
-        elif sys.argv[1] in passwords:
-            copy_pass_clip(passwords, sys.argv[1])
-    passwords.close()
-    if os.path.exists(config_passx + "/encrypted/pass"):
-        encrypt(check_recipient())
-        os.remove(config_passx + '/encrypted/pass')
+def add_account(vault, account):
+    if account in vault.accounts:
+        answer = input('%s already exists. Overwrite? [y/N]: ' % account).strip().lower()
+        if answer not in ('y', 'yes'):
+            print('Aborted.')
+            return
+    vault.accounts[account] = prompt_password()
+    vault.save()
+    print('Saved ' + account)
 
-# display how to use passx
-def help():
-    usage_str  = '''\tpass [account] - Loads password to clipboard\n'''
-    usage_str1 = '''\t-a , --add
-            passx -a/--add [account] - Saves account'''
-    usage_str2 = '''\t-d, --delete
-            passx -d/--delete [account] - Deletes account'''
-    usage_str3 = '''\t--list
-            passx --list - List all accounts saved'''
-    print('Usage:\n' + usage_str + '\n' + usage_str1 + '\n' + usage_str2 + '\n' + usage_str3)
 
-# main function
-def main():
-    if len(sys.argv) > 1:
-        if sys.argv[1].lower() == '--help':
-           help()
-           sys.exit()
-        arg_true()
+def delete_account(vault, account):
+    if account not in vault.accounts:
+        raise PassxError("Account '%s' doesn't exist" % account)
+    del vault.accounts[account]
+    vault.save()
+    print('Deleted ' + account)
+
+
+def list_accounts(vault):
+    for account in sorted(vault.accounts):
+        print(account)
+
+
+def copy_password(vault, account, clip_time):
+    if account not in vault.accounts:
+        raise PassxError("Account '%s' doesn't exist" % account)
+    password = vault.accounts[account]
+    pyperclip.copy(password)
+    if clip_time > 0:
+        schedule_clipboard_clear(password, clip_time)
+        print('Password for %s copied to the clipboard. Clearing in %d seconds.' % (account, clip_time))
     else:
-        help()
+        print('Password for %s copied to the clipboard.' % account)
 
-if __name__=="__main__":
-    main()
+
+def digest(text):
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def schedule_clipboard_clear(password, seconds):
+    # a detached child clears the clipboard after we exit; it only gets a hash,
+    # so the password never appears in its command line
+    subprocess.Popen(
+        [sys.executable, '-m', 'passx.passx', '--clear-clipboard', digest(password), str(seconds)],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+def clear_clipboard(expected_digest, seconds):
+    time.sleep(seconds)
+    try:
+        # don't wipe something the user copied in the meantime
+        if digest(pyperclip.paste()) == expected_digest:
+            pyperclip.copy('')
+    except pyperclip.PyperclipException:
+        pass
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog='passx', description='A password manager using GNUPG.')
+    parser.add_argument('account', nargs='?', help='copy the password for ACCOUNT to the clipboard')
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument('-a', '--add', metavar='ACCOUNT', help='save an account')
+    actions.add_argument('-d', '--delete', metavar='ACCOUNT', help='delete an account')
+    actions.add_argument('-l', '--list', action='store_true', help='list all saved accounts')
+    parser.add_argument('-t', '--clip-time', type=int, default=DEFAULT_CLIP_TIME, metavar='SECONDS',
+                        help='clear the clipboard after SECONDS (default %(default)s, 0 to disable)')
+    parser.add_argument('--clear-clipboard', nargs=2, help=argparse.SUPPRESS)
+    return parser
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.clear_clipboard:
+        clear_clipboard(args.clear_clipboard[0], float(args.clear_clipboard[1]))
+        return 0
+
+    action_given = args.add or args.delete or args.list
+    if action_given and args.account:
+        parser.error('ACCOUNT cannot be combined with --add, --delete or --list')
+    if not action_given and not args.account:
+        parser.print_help()
+        return 0
+
+    try:
+        vault = Vault().load()
+        if args.add:
+            add_account(vault, args.add)
+        elif args.delete:
+            delete_account(vault, args.delete)
+        elif args.list:
+            list_accounts(vault)
+        else:
+            copy_password(vault, args.account, args.clip_time)
+    except PassxError as e:
+        print('passx: error: %s' % e, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        # nothing is written until save(), so an interrupt can't corrupt the vault
+        print('\nAborted.', file=sys.stderr)
+        return 130
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -6,7 +6,7 @@ with open("README.md", "r") as readme:
     LONG_DESCRIPTION = readme.read()
 
 VERSION = '0.0.7'
-DESCRIPTION = 'A Password manager using GNUPG'
+DESCRIPTION = 'A password manager with a GUI and a GNUPG command line'
 URL = "https://github.com/harshbaliyan126/Passx-py"
 
 # Setting up
@@ -24,8 +24,12 @@ setup(
     entry_points={
         "console_scripts" : [
             'passx = passx.passx:main'
+            ],
+        "gui_scripts" : [
+            'passx-gui = passx.gui:main'
             ]
         },
+    python_requires=">=3.8",
     classifiers=[
         "Development Status :: 1 - Planning",
         "Intended Audience :: Developers",
